@@ -1,0 +1,65 @@
+---
+title: "project"
+author: "keremw"
+date: "Friday, January 23, 2015"
+output: html_document
+---
+##Predicting performance in doing barbell lifts correctly and incorrectly
+
+#Abstract
+The idea from the analysis is to find weather a person doing barebell lifts does it correctly or not. The data are accelaration measurments taken from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The data was cleaned into 53 parameters taken into account while trying to predict accoeding to data from accelometeres to which of the subgroups the performance is. Doing it correctly (group A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+
+Here I will run the code producing all the results. The discussion of it will be given later on
+
+```{r}
+#the code takes into account that the data is downloaded and is in the correct name in the current folder
+
+pmlTraining<-read.csv('pml-training.csv')
+pmlTestting<-read.csv('pml-testing.csv')
+library(caret)
+#partition into testing and training
+inTrain <- createDataPartition(y=pmlTraining$classe,
+                               p=0.6, list=FALSE)
+training <- pmlTraining[inTrain,]
+testing <- pmlTraining[-inTrain,]
+
+#check how many NAs
+NAsum=summary(colSums(is.na(training))/dim(training)[1])
+#seems like thare are colomns that are mainly na let's take them out
+numNAcollessThan0_9<-(colSums(is.na(training))/dim(training)[1])<0.9
+training<-training[,numNAcollessThan0_9]
+
+#check if variables have nearly zero variance
+nsv <- nearZeroVar(training,saveMetrics=TRUE)
+#save only colomns that don't have near zero variance
+training<-training[,!nsv$nzv]
+
+#The first arguments describe the data and are unrealavant to checking positions
+# the index, username, different stamps and number of window
+training<-training[,-(1:6)]
+
+#create model
+modelFit<-train(classe~.,data=training, method="rf", importance = TRUE)
+prTrain<-predict(modelFit, newdata=training)
+```
+
+The concordance of the training set:
+
+```{r}
+table(prTrain,training$classe)
+#test the model on a test set
+prTest<-predict(modelFit, newdata=testing)
+```
+
+The concordance of the test set
+
+```{r}
+table(prTest,testing$classe)
+#error rate
+outSampleError=sum(prTest!=testing$classe)/length(testing$classe)
+
+```
+
+#Discussion 
+The first thing I did was to partition the data into training set (60%) and testing set. Next I went to create the model. I started by tidying up the data. For that I first extracted data cols that had over 90% NAs in them. Then I extracted cols that had no variance. Last I removed the index, username, stamp and number of window cols since they are not releant to the question and they will surely skew the results.It left me with 59 data cols. I chose to use random forest model with it's default boutsrapping cross validation since It's classical to use this model for finding categorial data (much more than linear models). Also It requiers no preprocess transformations and studies straight from the data. The prediction using Random Forest model gave 98.6% accuracy in the training set. On testing set it gave an out of samel error of `r outSampleError*100`% and accuracy of `r (1-outSampleError)*100`%. Therefore the prediction model gives very accurate estimates.
